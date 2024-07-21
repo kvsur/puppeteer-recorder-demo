@@ -1,0 +1,16 @@
+{
+  "name": "puppteer-recorder",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "puppeteer": "^22.13.1",
+    "puppeteer-stream": "^3.0.15"
+  }
+}
