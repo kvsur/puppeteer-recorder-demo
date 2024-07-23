@@ -1,78 +1,62 @@
-import { launch, getStream } from "puppeteer-stream";
-import fs from "fs";
-import path from 'path';
-// require executablePath from puppeteer
-import { executablePath } from 'puppeteer';
+import dgram from 'dgram';
+import { PuppeteerRecorder } from './recorder.mjs';
+import express from 'express';
 
-class PuppeteerRecorder {
-  constructor() {
-    this.browser = null;
-    this.page = null;
-    this.file = null;
-    this.stream = null;
-    this.address = `http://localhost:5173/`;
-    this.filePath = path.resolve(process.cwd(), 'videos');
-    
-    console.log(`ExecutablePath: ----- ${executablePath()} -------`)
-  }
+const app = express();
+const port = 9012;
 
-  async init() {
-    let width = 430,
-      height = 932;
-    this.browser = await launch({
-      headless: false, 
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        `--window-size=${width},${height}`,
-        "--autoplay-policy=no-user-gesture-required",
-        // '--remote-debugging-port=3333',
-        // "--auto-open-devtools-for-tabs",
-      ],
-      defaultViewport: {
-        width: 0,
-        height: 0,
-      },
-      ignoreDefaultArgs: ["--disable-extensions", "--mute-audio"],
-      executablePath: executablePath(),
-    });
+app.get('/udp_test', (req, res) => {
+  main();
+  res.status(200);
+  res.end('Call UDP test function success');
+});
 
-    this.browser.on('disconnected', () => {
-      console.log('This browser closeed...');
-      this.destroy();
-    });
+app.listen(port, () => {
+  console.log(`Http server by express listening on port ${port}.`);
+});
 
-    let [page] = await this.browser.pages();
-    this.page = page;
-    await page.goto(this.address, { waitUntil: "networkidle0" });
+const REMOTE_UDP_HOST = '192.168.5.243';
+const REMOTE_UDP_PORT = 51234;
 
-    // dom 操作
-    // await page.waitForSelector('button[role="xxx"]', { visible: true });
-    // await page.click('button[role="xxx"]', page.waitForNavigation({ waitUntil: "networkidle2" }));
 
-    this.stream = await getStream(this.page, {
-      audio: true,
-      video: true,
-      frameSize: 20,
-    });
+async function main() {
+  // clientSocket.bind(9012);
   
-    this.file = fs.createWriteStream(`${this.filePath}/${Math.random().toString(36).slice(2)}.webm`);
-    this.stream.pipe(this.file);
+  const recorder = new PuppeteerRecorder();
+  
+  await recorder.init();
+  
+  await recorder.createPage();
+  
+  const clientSocket = dgram.createSocket('udp4');
+  // clientSocket.send();
+  recorder.recordWithStream(/** @params { Uint8Array } */ chunk => {
 
-    setTimeout(() => {
-      this.destroy();
-    }, 20 * 1000);
-  }
+    console.log('Total chunk size: --- ', chunk.length);
 
-  destroy() {
-    this.stream.end();
-    this.file.end();
-    // this.stream.close
-    this.file.close();
-    process.exit(0);
-  }
+    function send(ck) {
+      console.log('                |---- ', ck.length);
+      clientSocket.send(ck, REMOTE_UDP_PORT, REMOTE_UDP_HOST, (error) => {
+        if (error) {
+          console.error(error);
+          console.log('UDP 数据包发送失败')
+        }
+      })
+    }
+    while (chunk.length > 0) {
+      const tempChunk = chunk.slice(0, 9012);
+      chunk = chunk.slice(tempChunk.length)
+      // send(tempChunk);
+    }
+    
+  }, () => {
+    try {
+      // clientSocket.disconnect();
+      clientSocket.close();
+    } catch (error) {
+      console.error(error);
+    }
+  });
 }
 
-const recorder = new PuppeteerRecorder();
-
-recorder.init();
+// main();

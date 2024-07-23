@@ -26,7 +26,9 @@ function App() {
 
   return (
     <div style={{ textAlign: 'center' }}>
-      <video ref={video} style={{ width: '100vw', height: 'auto' }} src={mp4} loop />
+      <video ref={video} style={{ width: '100vw', height: 'auto' }} loop>
+        <source src={mp4} />
+      </video>
 
       <button onClick={playOrPause}>⏸/▶</button>
       <p style={{ textAlign: 'center' }}>{counter}</p>
