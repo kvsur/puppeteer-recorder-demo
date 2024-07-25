@@ -1,27 +1,37 @@
 import { useEffect, useRef, useState } from "react"
 import mp4 from './assets/sample.mp4';
 
-let timer: number | undefined;
-
 function App() {
   const video = useRef<HTMLVideoElement>(null);
+
+  const timer = useRef<number | undefined>();
+
+  const [startDate] = useState(new Date().toLocaleString('zh-CN'));
 
   useEffect(() => {
     video.current?.play();
 
-    timer = setInterval(() => {
+    timer.current = setInterval(() => {
       setCount(pre => pre + 1);
     }, 1000);
 
     return () => {
-      clearInterval(timer);
+      clearInterval(timer.current);
     };
   }, []);
 
   const [counter, setCount] = useState<number>(0);
 
   function playOrPause() {
-    video.current?.paused && video.current.play() || video.current?.pause();
+    if (video.current?.paused) {
+      video.current.play();
+      timer.current = setInterval(() => {
+        setCount(pre => pre + 1);
+      }, 1000);
+    } else {
+      video.current?.pause();
+      clearInterval(timer.current);
+    }
   }
 
   return (
@@ -32,6 +42,7 @@ function App() {
 
       <button onClick={playOrPause}>⏸/▶</button>
       <p style={{ textAlign: 'center' }}>{counter}</p>
+      <p>This page start at {startDate}</p>
     </div>
   )
 }

@@ -9,7 +9,6 @@ import internal, { Writable } from "stream";
 import Ffmpeg from "fluent-ffmpeg";
 import { Transform, PassThrough } from 'node:stream';
 
-
 /**
  * @typedef {{ url: string }} PageOpts
  * @typedef {{ windowConfig?: { width: number; height: number }; pageUrl: string; }} Options
@@ -44,8 +43,8 @@ export class PuppeteerRecorder {
 
   async init() {
     this.browser = await launch({
-      headless: "new", 
-      // headless: false, 
+      // headless: "new", 
+      headless: false, 
       args: [
         // "--disable-web-security", // CORS relative
         "--devtool",
@@ -64,6 +63,10 @@ export class PuppeteerRecorder {
       executablePath: executablePath(),
     });
 
+    // Get this first blank page and close it.
+    const [page] = await this.browser.pages();
+    await page.close();
+
     // this.browser.on('disconnected', () => {
     //   console.log('This browser closeed...');
     //   this.destroy();
@@ -72,11 +75,12 @@ export class PuppeteerRecorder {
 
   /**
    * 
+   * @param { Page } page 
    * @param {(chunk: Uint8Array) => void} onChunk 
-   * @param {() => void} onEnd
+   * @returns { Promise<internal.Transform> }
    */
-  async recordWithStream(onChunk, onEnd = () => {}) {
-    this.stream = await getStream(this.page, {
+  async recordWithStream(page, onChunk) {
+    const stream = await getStream(page, {
       audio: true,
       video: true,
       frameSize: 40,
@@ -86,104 +90,103 @@ export class PuppeteerRecorder {
       mimeType: 'video/webm;codecs="h264"',
     });
 
-    this.file = fs.createWriteStream(`${this.filePath}/${generateFilename()}.webm`);
-    this.stream.addListener('data', (chunk) => {
+    const file = fs.createWriteStream(`${this.filePath}/${generateFilename()}.webm`);
+    stream.addListener('data', (chunk) => {
       onChunk(chunk);
-      // this.file.write(chunk);
+      // file.write(chunk);
     });
 
-    const audioPassthrough = new PassThrough();
-    const audioName = `${generateFilename()}.wav`;
-    const audioStream = fs.createWriteStream(path.resolve(process.cwd(), audioName));
+    stream.pipe(file);
 
-    audioPassthrough.addListener("data", (chunk) => {
-      console.log("Audio wav 文件流写入到文件--", audioName, "chunk size：", chunk.length)
-      audioStream.write(chunk);
-    });
+    // const audioPassthrough = new PassThrough();
+    // const audioName = `${generateFilename()}.wav`;
+    // const audioStream = fs.createWriteStream(path.resolve(process.cwd(), audioName));
 
-    audioPassthrough.addListener('end', () => {
-      audioStream.end();
-    });
+    // audioPassthrough.addListener("data", (chunk) => {
+    //   console.log("Audio wav 文件流写入到文件--", audioName, "chunk size：", chunk.length)
+    //   audioStream.write(chunk);
+    // });
 
-    const videoPassthrough = new PassThrough();
-    const videoName = `${generateFilename()}.h264`;
-    const videoStream = fs.createWriteStream(path.resolve(process.cwd(), videoName));
+    // audioPassthrough.addListener('end', () => {
+    //   audioStream.end();
+    // });
+
+    // const videoPassthrough = new PassThrough();
+    // const videoName = `${generateFilename()}.h264`;
+    // const videoStream = fs.createWriteStream(path.resolve(process.cwd(), videoName));
     
-    videoPassthrough.addListener("data", (chunk) => {
-      console.log("Video h264 文件流写入到文件--", videoName, "chunk size：", chunk.length)
-      videoStream.write(chunk);
-    });
+    // videoPassthrough.addListener("data", (chunk) => {
+    //   console.log("Video h264 文件流写入到文件--", videoName, "chunk size：", chunk.length)
+    //   videoStream.write(chunk);
+    // });
 
-    videoPassthrough.addListener('end', () => {
-      videoStream.end();
-    });
+    // videoPassthrough.addListener('end', () => {
+    //   videoStream.end();
+    // });
 
-    Ffmpeg(this.stream)
-      .noVideo()
-      .audioCodec('pcm_mulaw')
-      .toFormat('wav')
-      .on('end', () => {
-        console.log('Extraction audio finished');
-      })
-      .on('error', (err) => {
-        console.error('Audio Error:', err);
-      })
-      .stream(audioPassthrough);
+    // Ffmpeg(this.stream)
+    //   .noVideo()
+    //   .audioCodec('pcm_mulaw')
+    //   .toFormat('wav')
+    //   .on('end', () => {
+    //     console.log('Extraction audio finished');
+    //   })
+    //   .on('error', (err) => {
+    //     console.error('Audio Error:', err);
+    //   })
+    //   .stream(audioPassthrough);
 
-      Ffmpeg(this.stream)
-        .noAudio()
-        .videoCodec('libx264')
-        .toFormat('h264')
-        .on('end', () => {
-          console.log('Extraction video finished');
-        })
-        .on('error', (err) => {
-          console.error('Video Error:', err);
-        })
-        .stream(videoPassthrough);
+    //   Ffmpeg(this.stream)
+    //     .noAudio()
+    //     .videoCodec('libx264')
+    //     .toFormat('h264')
+    //     .on('end', () => {
+    //       console.log('Extraction video finished');
+    //     })
+    //     .on('error', (err) => {
+    //       console.error('Video Error:', err);
+    //     })
+    //     .stream(videoPassthrough);
 
-    this.stream.addListener("end", () => {
-      onEnd();
-      // audioPassthrough.end();
-      // videoPassthrough.end();
+    // stream.addListener("end", () => {
+    //   // audioPassthrough.end();
+    //   // videoPassthrough.end();
+    //   console.log('---------------Stream closeed.--------------');
+    // });
+
+    stream.addListener('end', () => {
       console.log('---------------Stream closeed.--------------');
+      file.close();
     });
-  
-    this.stream.pipe(this.file);
 
-    setTimeout(() => {
-      this.destroy();
-    }, 5 * 1000);
+    return (this.stream = stream);
   }
 
   /**
    * 
-   * @param { PageOpts } opts 
+   * @param { PageOpts? } opts 
+   * @returns { Promise<Page> }
    */
-  async createPage(opts) {
-    // let [page] = await this.browser.pages();
+  async createPage(opts = {}) {
     const page = await this.browser.newPage();
-    // page.title
-    // await this.browser.newPage();
-    this.page = page;
-    // await page.emulate(this.device);
-    await page.goto(this.address, { waitUntil: "networkidle0" });
-    await page.evaluate(`document.title = "https://www.pornhub.com"`);
+    await page.goto(opts.url || this.address, { waitUntil: "networkidle0" });
+    // await page.evaluate(`document.title = "https://www.pornhub.com"`);
 
     // dom 操作
     // await page.waitForSelector('button[role="xxx"]', { visible: true });
     // await page.click('button[role="xxx"]', page.waitForNavigation({ waitUntil: "networkidle2" }));
-    // this.recordWithStream();
+
+    return (this.page = page);
   }
 
   async destroy() {
-    this.stream.end();
-    // this.file.end();
-    // this.stream.close
-    // this.file.close();
-    await this.page.close();
-    await this.browser.close();
-    // process.exit(0);
+    try {
+      this.stream.end();
+      await this.page.close();
+      await this.browser.close();
+    } catch (error) {
+      return Promise.reject(error);
+    }
   }
 }
 
@@ -195,7 +198,7 @@ function generateFilename() {
     .toLocaleString('zh-CN')
     .replace(/[\/\s:]/g, '-')
     .replace(/(?<=-)(\d)(?=-)/g, (str) => `0${str}`)
-    .replace(/-/g, '');
+    .replace(/-/g, '') + '.' + Math.random().toString(36).slice(2);
 }
 
 // const recorder = new PuppeteerRecorder();
