@@ -1,6 +1,8 @@
 import dgram from 'dgram';
 import { PuppeteerRecorder } from './recorder';
 import express from 'express';
+import { WebSocketServer } from 'ws';
+import http from 'http';
 // import paramsProd from '../secret.prod.json';
 // import paramsTest from '../secret.test.json';
 // import {} from 'express-ws'
@@ -11,10 +13,15 @@ const REMOTE_UDP_PORT = 51234;
 async function main() {
   const app = express();
   const port = 9012;
-  
+
+  const server = http.createServer(app);
   app.listen(port, () => {
     console.log(`Http server by express listening on port ${port}.`);
   });
+
+  // new WebSocketServer({
+  //   server,
+  // });
   
   app.get('/udp_test', (req, res) => {
     res.status(200);

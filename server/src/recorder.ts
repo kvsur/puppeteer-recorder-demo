@@ -10,11 +10,6 @@ import internal, { Writable } from "stream";
 interface Options { windowConfig?: { width: number; height: number }; pageUrl?: string; }
 interface PageOpts { url?: string }
 
-
-const lichengArgs = {
-  licheng: '李成'
-};
-
 export class PuppeteerRecorder {
   private browser: Browser = null;
   private page: Page = null;
