@@ -4,8 +4,8 @@
   "description": "A recorder for recording video stream from 3D virtual human in puppeteer.",
   "main": "index.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js"
+    "build": "tsc -w -p tsconfig.json",
+    "start": "nodemon dist/index.js"
   },
   "keywords": [],
   "author": "hello1024lc@gmail.com",
@@ -16,10 +16,12 @@
     "puppeteer-core": "^22.14.0",
     "puppeteer-stream": "^3.0.15",
     "typescript": "5.2.2",
+    "winston": "^3.13.1",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
-    "@types/ws": "^8.5.11"
+    "@types/ws": "^8.5.11",
+    "nodemon": "^3.1.4"
   }
 }

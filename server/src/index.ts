@@ -1,12 +1,16 @@
-import dgram from 'dgram';
+// import dgram from 'dgram';
 import { PuppeteerRecorder } from './recorder';
 import express from 'express';
 import { WebSocketServer } from 'ws';
 import http from 'http';
-// import paramsProd from '../secret.prod.json';
-// import paramsTest from '../secret.test.json';
+// import params from './secret.test.json';
+import params from './secret.prod.json';
+import logger from './utils/logger';
 // import {} from 'express-ws'
 
+const url  = `http://localhost:5173?${Object.entries(params).map(([key, val]) => `${key}=${val}`).join('&')}`;
+
+logger.info(url);
 const REMOTE_UDP_HOST = '192.168.5.243';
 const REMOTE_UDP_PORT = 51234;
 
@@ -14,14 +18,32 @@ async function main() {
   const app = express();
   const port = 9012;
 
-  const server = http.createServer(app);
-  app.listen(port, () => {
-    console.log(`Http server by express listening on port ${port}.`);
+  const server = http.createServer(app).listen(port);
+  // app.listen(port, () => {
+  //   logger.info(`Http server by express listening on port ${port}.`);
+  // });
+
+  // app.addListener('')
+
+  const socketServer = new WebSocketServer({
+    // port: 9013,
+    server,
   });
 
-  // new WebSocketServer({
-  //   server,
-  // });
+  socketServer.addListener('connection', (client, req) => {
+    logger.info(`SocketServer connenction connected...`);
+    console.log(client, req);
+
+    // socketServer.addListener('')
+
+    setTimeout(() => {
+      client.close();
+    }, 3000 * 1);
+  });
+
+  socketServer.addListener('close', () => {
+    logger.info(`SocketServer connenction closed...`);
+  });
   
   app.get('/udp_test', (req, res) => {
     res.status(200);
@@ -37,21 +59,21 @@ async function main() {
   
     await recorder.init();
     const page = await recorder.createPage({
-      url: `http://localhost:5173?${Object.entries({}).map(([key, val]) => `${key}=${val}`).join('&')}`
+      url
     });
   
-    const clientSocket = dgram.createSocket('udp4');
+    // const clientSocket = dgram.createSocket('udp4');
     // clientSocket.send();
     const stream = await recorder.recordWithStream(page, chunk => {
 
-      console.log('Total chunk size: --- ', chunk.length);
+      logger.info('Total chunk size: --- ', chunk.length);
 
       function send(ck) {
-        console.log('                |---- ', ck.length);
+        logger.info('                |---- ', ck.length);
         // clientSocket.send(ck, REMOTE_UDP_PORT, REMOTE_UDP_HOST, (error) => {
         //   if (error) {
         //     console.error(error);
-        //     console.log('UDP 数据包发送失败')
+        //     logger.info('UDP 数据包发送失败')
         //   }
         // })
       }
